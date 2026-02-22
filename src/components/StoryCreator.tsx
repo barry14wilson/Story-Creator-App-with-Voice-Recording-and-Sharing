@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { UserPlusIcon, MapPinIcon, ActivityIcon, CalendarIcon, BookOpenIcon, SparklesIcon } from 'lucide-react';
+import { UserPlusIcon, MapPinIcon, ActivityIcon, CalendarIcon, BookOpenIcon, SparklesIcon, HeadphonesIcon, BookIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import type { StoryCreationParams, StoryCharacter } from '../types';
+import type { StoryCreationParams, StoryCharacter, StoryFormat, AudiobookMode } from '../types';
 import { CHARACTER_TYPES, QUICK_PLACES, QUICK_ACTIONS, TIER_LIMITS, MIN_AGE, MAX_AGE_RATING, getCharacterImageUrl } from '../types';
 
 interface StoryCreatorProps {
@@ -21,6 +21,8 @@ export const StoryCreator = ({ onCreateStory }: StoryCreatorProps) => {
   const [place, setPlace] = useState('');
   const [action, setAction] = useState('');
   const [introLength, setIntroLength] = useState<1 | 2>(1);
+  const [format, setFormat] = useState<StoryFormat>('standard');
+  const [audiobookMode, setAudiobookMode] = useState<AudiobookMode>('straight');
   const [step, setStep] = useState(1);
 
   const handleCharacterCountChange = (count: number) => {
@@ -53,6 +55,8 @@ export const StoryCreator = ({ onCreateStory }: StoryCreatorProps) => {
       place,
       action,
       introLength,
+      format,
+      audiobookMode: format === 'audiobook' ? audiobookMode : undefined,
     });
   };
 
@@ -146,6 +150,79 @@ export const StoryCreator = ({ onCreateStory }: StoryCreatorProps) => {
                   2 Paragraphs
                 </button>
               </div>
+            </div>
+
+            {/* Story Format Selection */}
+            <div className="text-center mt-6">
+              <h3 className="text-lg font-bold text-gray-800 font-body mb-3">
+                What kind of story?
+              </h3>
+              <div className="flex justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setFormat('standard')}
+                  className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl font-body font-semibold transition-all ${
+                    format === 'standard'
+                      ? 'bg-purple-500 text-white shadow-lg scale-105'
+                      : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                  }`}
+                >
+                  <BookIcon size={24} />
+                  <span>Story Book</span>
+                  <span className="text-xs opacity-75">Read & illustrate</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormat('audiobook')}
+                  className={`flex flex-col items-center gap-2 px-6 py-4 rounded-xl font-body font-semibold transition-all ${
+                    format === 'audiobook'
+                      ? 'bg-purple-500 text-white shadow-lg scale-105'
+                      : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+                  }`}
+                >
+                  <HeadphonesIcon size={24} />
+                  <span>Audiobook</span>
+                  <span className="text-xs opacity-75">
+                    Up to {TIER_LIMITS[tier].maxAudiobookMinutes} min
+                  </span>
+                </button>
+              </div>
+
+              {/* Audiobook mode selection */}
+              {format === 'audiobook' && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm text-gray-500 font-body">Choose your audiobook style:</p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setAudiobookMode('straight')}
+                      className={`px-5 py-2 rounded-lg font-body text-sm font-semibold transition-all ${
+                        audiobookMode === 'straight'
+                          ? 'bg-blue-500 text-white shadow'
+                          : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      }`}
+                    >
+                      Straight Story
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAudiobookMode('interactive')}
+                      className={`px-5 py-2 rounded-lg font-body text-sm font-semibold transition-all ${
+                        audiobookMode === 'interactive'
+                          ? 'bg-blue-500 text-white shadow'
+                          : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      }`}
+                    >
+                      Interactive (Choose Your Path)
+                    </button>
+                  </div>
+                  {audiobookMode === 'interactive' && (
+                    <p className="text-xs text-gray-400 font-body">
+                      The story will pause at exciting moments and let you decide what happens next!
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <button

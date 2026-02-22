@@ -3,6 +3,10 @@
 // ============================================
 
 export type UserTier = 'free' | 'pro';
+export type StoryFormat = 'standard' | 'audiobook';
+export type AudiobookMode = 'interactive' | 'straight';
+export type ProfileVisibility = 'public' | 'private';
+export type FollowStatus = 'pending' | 'accepted' | 'declined';
 
 export interface UserProfile {
   uid: string;
@@ -11,6 +15,12 @@ export interface UserProfile {
   tier: UserTier;
   createdAt: string;
   deliveryAddress?: DeliveryAddress;
+  avatarUrl?: string;
+  bio?: string;
+  visibility: ProfileVisibility;
+  isChild: boolean;
+  parentalConsentGranted: boolean;
+  parentEmail?: string;
 }
 
 export interface DeliveryAddress {
@@ -20,6 +30,79 @@ export interface DeliveryAddress {
   city: string;
   postcode: string;
   country: string;
+}
+
+// ============================================
+// Audiobook Types
+// ============================================
+
+export interface DecisionOption {
+  id: string;
+  label: string;
+  summary: string;
+}
+
+export interface DecisionPoint {
+  id: string;
+  segmentIndex: number;
+  prompt: string;
+  options: DecisionOption[];
+  selectedOptionId?: string;
+}
+
+export interface AudioSegment {
+  id: string;
+  storySegmentId: string;
+  audioUrl: string;
+  durationMs: number;
+  status: 'pending' | 'generating' | 'done' | 'failed';
+}
+
+export interface AudiobookData {
+  mode: AudiobookMode;
+  voiceId: string;
+  audioSegments: AudioSegment[];
+  totalDurationMs: number;
+  decisionPoints: DecisionPoint[];
+  isComplete: boolean;
+}
+
+// ============================================
+// Social / Profile Types
+// ============================================
+
+export interface PublicProfile {
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
+  bio?: string;
+  visibility: ProfileVisibility;
+  isChild: boolean;
+  followerCount: number;
+  followingCount: number;
+  storyCount: number;
+  createdAt: string;
+}
+
+export interface FollowRequest {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  fromDisplayName: string;
+  fromAvatarUrl?: string;
+  status: FollowStatus;
+  createdAt: string;
+  respondedAt?: string;
+}
+
+// ============================================
+// Daily Usage Tracking
+// ============================================
+
+export interface DailyUsage {
+  userId: string;
+  date: string; // YYYY-MM-DD
+  storiesCreated: number;
 }
 
 export type IllustrationSize = 'full' | 'half';
@@ -74,6 +157,10 @@ export interface Story {
   isComplete: boolean;
   createdAt: string;
   updatedAt: string;
+  format: StoryFormat;
+  audiobook?: AudiobookData;
+  isPublic: boolean;
+  estimatedReadMinutes: number;
 }
 
 export interface StoryCharacter {
@@ -89,6 +176,8 @@ export interface StoryCreationParams {
   place: string;
   action: string;
   introLength: 1 | 2;
+  format: StoryFormat;
+  audiobookMode?: AudiobookMode;
 }
 
 // Constants
@@ -98,12 +187,18 @@ export const TIER_LIMITS = {
     maxSavedStories: 3,
     canPrint: false,
     storyLengthLabel: 'Standard',
+    maxStoryMinutes: 20,
+    maxStoriesPerDay: 1,
+    maxAudiobookMinutes: 20,
   },
   pro: {
     maxCharacters: 5,
     maxSavedStories: 999,
     canPrint: true,
     storyLengthLabel: 'Extended',
+    maxStoryMinutes: 60,
+    maxStoriesPerDay: 3,
+    maxAudiobookMinutes: 60,
   },
 } as const;
 

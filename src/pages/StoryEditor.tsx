@@ -4,8 +4,10 @@ import { SaveIcon, BookIcon, Loader2Icon, CheckCircleIcon, PlusIcon } from 'luci
 import { v4 as uuidv4 } from 'uuid';
 import { StoryCreator } from '../components/StoryCreator';
 import { StoryDisplay } from '../components/StoryDisplay';
+import { StoryGenerationProgress } from '../components/StoryGenerationProgress';
+import { AudiobookPlayer } from '../components/AudiobookPlayer';
 import { useAuth } from '../context/AuthContext';
-import { saveStory, getUserStoryCount } from '../lib/firebase';
+import { saveStory, getUserStoryCount, canCreateStory, incrementDailyUsage } from '../lib/firebase';
 import {
   generateStoryBeginning,
   generateStoryContinuation,
@@ -13,6 +15,8 @@ import {
   generateIllustration,
   generateCoverIllustration,
 } from '../lib/storyAI';
+import { generateExtendedStory } from '../lib/storyGenerator';
+import type { GenerationProgress } from '../lib/storyGenerator';
 import type { Story, StorySegment, StoryCreationParams } from '../types';
 import {
   getStoryImage,
@@ -34,6 +38,8 @@ export const StoryEditor = () => {
 
   const [storyParams, setStoryParams] = useState<StoryCreationParams | null>(null);
   const [story, setStory] = useState<Story | null>(null);
+  const [dailyLimitError, setDailyLimitError] = useState<string | null>(null);
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgress | null>(null);
 
   // --------------------------------------------------
   // Helper: generate illustration for a segment async
@@ -100,49 +106,144 @@ export const StoryEditor = () => {
   // --------------------------------------------------
   const handleCreateStory = useCallback(async (params: StoryCreationParams) => {
     setIsGenerating(true);
+    setDailyLimitError(null);
     setStoryParams(params);
 
     try {
-      const segments = await generateStoryBeginning(params, params.introLength);
-      const title = `${params.action} in ${params.place}`;
-
-      // Start with place-based fallback cover, upgrade async
-      const fallbackCover = getStoryImage(params.place);
-
-      const newStory: Story = {
-        id: uuidv4(),
-        userId: user?.uid || '',
-        title,
-        synopsis: '',
-        coverImageUrl: fallbackCover,
-        childAge: params.childAge,
-        characters: params.characters,
-        place: params.place,
-        action: params.action,
-        segments,
-        authorName: profile?.displayName || user?.displayName || 'Young Author',
-        isComplete: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      setStory(newStory);
-      setStoryCreated(true);
-
-      // --- Async illustration generation ---
-      // 1. Cover illustration (non-blocking)
-      generateCoverIllustration(title, params.characters, params.place, params.childAge)
-        .then(coverUrl => {
-          setStory(prev => prev ? { ...prev, coverImageUrl: coverUrl } : prev);
-        })
-        .catch(() => {/* keep fallback cover */});
-
-      // 2. Segment illustrations based on age rules
-      segments.forEach((seg, idx) => {
-        if (shouldSegmentHaveIllustration(idx, params.childAge)) {
-          generateSegmentIllustration(seg.id, seg.text, idx, params);
+      // Check daily story limit
+      if (user?.uid) {
+        const maxPerDay = TIER_LIMITS[tier].maxStoriesPerDay;
+        const { allowed } = await canCreateStory(user.uid, maxPerDay);
+        if (!allowed) {
+          setDailyLimitError(
+            tier === 'free'
+              ? `You've used your daily story. Upgrade to Pro for ${TIER_LIMITS.pro.maxStoriesPerDay} stories per day!`
+              : `You've used all ${maxPerDay} stories for today. Come back tomorrow!`
+          );
+          setIsGenerating(false);
+          return;
         }
-      });
+      }
+
+      const isAudiobook = params.format === 'audiobook';
+
+      if (isAudiobook) {
+        // === AUDIOBOOK PATH: Multi-chapter generation ===
+        setGenerationProgress({
+          phase: 'outline',
+          currentChapter: 0,
+          totalChapters: 0,
+          percentComplete: 0,
+          message: 'Starting your audiobook...',
+        });
+
+        const result = await generateExtendedStory(params, (progress) => {
+          setGenerationProgress(progress);
+        });
+
+        const fallbackCover = getStoryImage(params.place);
+
+        const newStory: Story = {
+          id: uuidv4(),
+          userId: user?.uid || '',
+          title: result.title,
+          synopsis: '',
+          coverImageUrl: fallbackCover,
+          childAge: params.childAge,
+          characters: params.characters,
+          place: params.place,
+          action: params.action,
+          segments: result.segments,
+          authorName: profile?.displayName || user?.displayName || 'Young Author',
+          isComplete: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          format: 'audiobook',
+          isPublic: false,
+          estimatedReadMinutes: result.estimatedReadMinutes,
+          audiobook: result.decisionPoints.length > 0
+            ? {
+                mode: params.audiobookMode || 'straight',
+                voiceId: '',
+                audioSegments: [],
+                totalDurationMs: 0,
+                decisionPoints: result.decisionPoints,
+                isComplete: false,
+              }
+            : undefined,
+        };
+
+        setStory(newStory);
+        setStoryCreated(true);
+        setGenerationProgress(null);
+
+        // Increment daily usage counter
+        if (user?.uid) {
+          incrementDailyUsage(user.uid).catch(err =>
+            console.error('Failed to update daily usage:', err)
+          );
+        }
+
+        // Async cover illustration
+        generateCoverIllustration(result.title, params.characters, params.place, params.childAge)
+          .then(coverUrl => {
+            setStory(prev => prev ? { ...prev, coverImageUrl: coverUrl } : prev);
+          })
+          .catch(() => {/* keep fallback cover */});
+
+      } else {
+        // === STANDARD PATH: Short story generation ===
+        const segments = await generateStoryBeginning(params, params.introLength);
+        const title = `${params.action} in ${params.place}`;
+
+        // Start with place-based fallback cover, upgrade async
+        const fallbackCover = getStoryImage(params.place);
+
+        const newStory: Story = {
+          id: uuidv4(),
+          userId: user?.uid || '',
+          title,
+          synopsis: '',
+          coverImageUrl: fallbackCover,
+          childAge: params.childAge,
+          characters: params.characters,
+          place: params.place,
+          action: params.action,
+          segments,
+          authorName: profile?.displayName || user?.displayName || 'Young Author',
+          isComplete: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          format: 'standard',
+          isPublic: false,
+          estimatedReadMinutes: 5,
+        };
+
+        setStory(newStory);
+        setStoryCreated(true);
+
+        // Increment daily usage counter
+        if (user?.uid) {
+          incrementDailyUsage(user.uid).catch(err =>
+            console.error('Failed to update daily usage:', err)
+          );
+        }
+
+        // --- Async illustration generation ---
+        // 1. Cover illustration (non-blocking)
+        generateCoverIllustration(title, params.characters, params.place, params.childAge)
+          .then(coverUrl => {
+            setStory(prev => prev ? { ...prev, coverImageUrl: coverUrl } : prev);
+          })
+          .catch(() => {/* keep fallback cover */});
+
+        // 2. Segment illustrations based on age rules
+        segments.forEach((seg, idx) => {
+          if (shouldSegmentHaveIllustration(idx, params.childAge)) {
+            generateSegmentIllustration(seg.id, seg.text, idx, params);
+          }
+        });
+      }
     } catch (err) {
       console.error('Failed to generate story:', err);
     } finally {
@@ -279,10 +380,37 @@ export const StoryEditor = () => {
 
   return (
     <div className="max-w-2xl mx-auto">
-      {!storyCreated ? (
+      {dailyLimitError && (
+        <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-center">
+          <p className="font-semibold">Daily Limit Reached</p>
+          <p className="text-sm mt-1">{dailyLimitError}</p>
+        </div>
+      )}
+      {generationProgress ? (
+        <StoryGenerationProgress progress={generationProgress} />
+      ) : !storyCreated ? (
         <StoryCreator onCreateStory={handleCreateStory} />
       ) : story ? (
         <div className="space-y-6">
+          {/* Audiobook Player for audiobook format */}
+          {story.format === 'audiobook' && (
+            <AudiobookPlayer
+              story={story}
+              onDecisionMade={(decisionId, optionId) => {
+                // Update the decision point in story state
+                if (story.audiobook) {
+                  const updatedDecisions = story.audiobook.decisionPoints.map(dp =>
+                    dp.id === decisionId ? { ...dp, selectedOptionId: optionId } : dp
+                  );
+                  setStory(prev => prev ? {
+                    ...prev,
+                    audiobook: { ...prev.audiobook!, decisionPoints: updatedDecisions },
+                  } : prev);
+                }
+              }}
+            />
+          )}
+
           <StoryDisplay
             storyTitle={story.title}
             storyImage={story.coverImageUrl}

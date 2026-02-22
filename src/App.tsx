@@ -8,6 +8,8 @@ import { Profile } from './pages/Profile';
 import { StoryEditor } from './pages/StoryEditor';
 import { StoryReader } from './pages/StoryReader';
 import { BookView } from './pages/BookView';
+import { Explore } from './pages/Explore';
+import { PublicProfilePage } from './pages/PublicProfilePage';
 import { Login } from './components/Login';
 import { Loader2Icon, BookOpenIcon } from 'lucide-react';
 
@@ -83,7 +85,9 @@ const AppContent = () => {
           {/* Public routes */}
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/explore" element={<Explore />} />
           <Route path="/story/:id" element={<StoryReader />} />
+          <Route path="/user/:userId" element={<PublicProfilePage />} />
 
           {/* Protected routes */}
           <Route
