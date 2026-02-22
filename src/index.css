@@ -1,3 +1,111 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
+
+/* Global Styles for Robyn Reads */
+body {
+  font-family: 'Nunito', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Story text colors per PRD: App text = black, User text = purple */
+.story-text-ai {
+  @apply text-gray-900;
+}
+.story-text-user {
+  @apply text-purple-700;
+}
+
+/* Story segment styling */
+.story-segment-ai {
+  @apply p-4 bg-amber-50 rounded-lg border border-amber-200;
+}
+.story-segment-user {
+  @apply p-4 bg-purple-50 rounded-lg border border-purple-200;
+}
+
+/* Fun scrollbar for kids */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #f3e8ff;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #7c3aed, #3b82f6);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #6d28d9, #2563eb);
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background: white;
+  }
+  .story-segment-ai,
+  .story-segment-user {
+    border: none;
+    padding: 0;
+    background: none;
+    break-inside: avoid;
+  }
+
+  /* Book page breaks for printing */
+  .book-page-break {
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* Full-page illustrations get their own page */
+  .book-illustration-break {
+    page-break-before: always;
+    break-before: page;
+  }
+
+  /* Keep illustration + text together */
+  .illustration-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Half-page illustration layout stays together */
+  .illustration-block-half {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Remove shadows and rounded corners for cleaner print */
+  .shadow-xl, .shadow-lg, .shadow-md, .shadow {
+    box-shadow: none !important;
+  }
+  .rounded-2xl, .rounded-xl, .rounded-lg {
+    border-radius: 0 !important;
+  }
+
+  /* Ensure images print properly */
+  img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
+/* Animations */
+@keyframes sparkle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.animate-sparkle {
+  animation: sparkle 1.5s ease-in-out infinite;
+}
