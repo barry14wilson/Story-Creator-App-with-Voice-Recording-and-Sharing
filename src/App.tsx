@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate, Link } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navigation } from './components/Navigation';
@@ -46,12 +46,12 @@ const NotFound = () => (
     <p className="text-gray-500 font-body mb-6">
       Oops! This page doesn't exist. Let's get you back to making stories!
     </p>
-    <a
-      href="/"
+    <Link
+      to="/"
       className="inline-flex items-center gap-2 py-3 px-6 bg-gradient-to-r from-purple-500 to-blue-500 text-white font-bold rounded-xl shadow font-body"
     >
       Go Home
-    </a>
+    </Link>
   </div>
 );
 
@@ -135,7 +135,7 @@ const AppContent = () => {
 export function App() {
   return (
     <ErrorBoundary>
-      <Router>
+      <Router basename={import.meta.env.BASE_URL}>
         <AuthProvider>
           <AppContent />
         </AuthProvider>
