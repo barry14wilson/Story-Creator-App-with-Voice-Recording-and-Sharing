@@ -15,8 +15,12 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   profile: null,
   loading: true,
-  setProfile: () => {},
-  logout: async () => {},
+  setProfile: () => {
+    /* no-op default, replaced by AuthProvider */
+  },
+  logout: async () => {
+    /* no-op default, replaced by AuthProvider */
+  },
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {

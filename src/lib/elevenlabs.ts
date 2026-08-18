@@ -254,8 +254,9 @@ export function speakWithWebSpeech(
 
   if (options?.onEnd) utterance.onend = options.onEnd;
   if (options?.onBoundary) {
+    const onBoundary = options.onBoundary;
     utterance.onboundary = (event) => {
-      options.onBoundary!(event.charIndex);
+      onBoundary(event.charIndex);
     };
   }
 

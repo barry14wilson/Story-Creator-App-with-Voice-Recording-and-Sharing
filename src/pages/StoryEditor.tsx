@@ -249,7 +249,7 @@ export const StoryEditor = () => {
     } finally {
       setIsGenerating(false);
     }
-  }, [user, profile, generateSegmentIllustration]);
+  }, [user, profile, tier, generateSegmentIllustration]);
 
   // --------------------------------------------------
   // Add User Text
@@ -311,7 +311,7 @@ export const StoryEditor = () => {
   // Save Story
   // --------------------------------------------------
   const handleSaveStory = useCallback(async () => {
-    if (!story || !user) return;
+    if (!story || !user || !storyParams) return;
 
     setIsSaving(true);
     setSaveError(null);
@@ -326,7 +326,7 @@ export const StoryEditor = () => {
       }
 
       const fullText = story.segments.map(s => s.text).join('\n\n');
-      const synopsis = await generateSynopsis(storyParams!, fullText);
+      const synopsis = await generateSynopsis(storyParams, fullText);
 
       const storyToSave: Story = {
         ...story,
@@ -398,15 +398,16 @@ export const StoryEditor = () => {
               story={story}
               onDecisionMade={(decisionId, optionId) => {
                 // Update the decision point in story state
-                if (story.audiobook) {
-                  const updatedDecisions = story.audiobook.decisionPoints.map(dp =>
+                setStory(prev => {
+                  if (!prev?.audiobook) return prev;
+                  const updatedDecisions = prev.audiobook.decisionPoints.map(dp =>
                     dp.id === decisionId ? { ...dp, selectedOptionId: optionId } : dp
                   );
-                  setStory(prev => prev ? {
+                  return {
                     ...prev,
-                    audiobook: { ...prev.audiobook!, decisionPoints: updatedDecisions },
-                  } : prev);
-                }
+                    audiobook: { ...prev.audiobook, decisionPoints: updatedDecisions },
+                  };
+                });
               }}
             />
           )}

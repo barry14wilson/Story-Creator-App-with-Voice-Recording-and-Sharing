@@ -364,7 +364,7 @@ export async function generateExtendedStory(
       wordsPerChapter
     );
 
-    const text = chapterText || generateFallbackChapter(params, chapter, i);
+    const text = chapterText || generateFallbackChapter(params, chapter);
 
     // Add chapter title as a segment
     segments.push({
@@ -439,8 +439,7 @@ export async function generateExtendedStory(
 
 function generateFallbackChapter(
   params: StoryCreationParams,
-  chapter: ChapterOutline,
-  _index: number
+  chapter: ChapterOutline
 ): string {
   const chars = params.characters.filter(c => c.name.trim());
   const firstName = chars[0] ? `${chars[0].name} the ${chars[0].type}` : 'our hero';

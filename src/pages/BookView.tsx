@@ -1,14 +1,51 @@
-import { useLocation, Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useLocation, useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeftIcon, PrinterIcon, BookOpenIcon, ImageIcon, Loader2Icon } from 'lucide-react';
 import type { Story } from '../types';
 import { formatCharacterNames, getCharacterImageUrl } from '../types';
+import { getStory } from '../lib/firebase';
 
 export const BookView = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { story } = (location.state || {}) as {
+  const { id } = useParams<{ id: string }>();
+  const { story: stateStory } = (location.state || {}) as {
     story?: Story;
   };
+
+  const [story, setStory] = useState<Story | null>(stateStory ?? null);
+  const [loading, setLoading] = useState(!stateStory);
+
+  // When opened via a direct link / page refresh there is no router state,
+  // so load the saved book from Firebase by its id.
+  useEffect(() => {
+    if (stateStory || !id) return;
+    let active = true;
+    setLoading(true);
+    getStory(id)
+      .then(fetched => {
+        if (active) setStory(fetched);
+      })
+      .catch(err => {
+        console.error('Failed to load book:', err);
+        if (active) setStory(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, stateStory]);
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto text-center py-20">
+        <Loader2Icon size={40} className="animate-spin text-purple-500 mx-auto" />
+        <p className="text-gray-500 font-body mt-4">Opening your book...</p>
+      </div>
+    );
+  }
 
   if (!story) {
     return (
