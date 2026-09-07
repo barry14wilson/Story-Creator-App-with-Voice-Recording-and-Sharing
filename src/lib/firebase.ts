@@ -47,6 +47,41 @@ export const db = initializeFirestore(app, {
 });
 
 // ============================================
+// Profile projection helpers
+// ============================================
+
+// Public-safe subset of a profile. Everything else on the user doc
+// (email, parentEmail, tier, deliveryAddress, consent flags) is PII and
+// must never be exposed to other users, so it stays in `users/{uid}`,
+// which security rules restrict to the owner.
+const PUBLIC_PROFILE_KEYS = [
+  'displayName',
+  'avatarUrl',
+  'bio',
+  'visibility',
+  'isChild',
+  'createdAt',
+] as const;
+
+function publicProfileFrom(profile: UserProfile) {
+  return {
+    uid: profile.uid,
+    displayName: profile.displayName,
+    avatarUrl: profile.avatarUrl,
+    bio: profile.bio,
+    visibility: profile.visibility,
+    isChild: profile.isChild,
+    createdAt: profile.createdAt,
+  };
+}
+
+// Write both the private user doc and its public projection.
+async function persistNewProfile(profile: UserProfile): Promise<void> {
+  await setDoc(doc(db, 'users', profile.uid), profile);
+  await setDoc(doc(db, 'publicProfiles', profile.uid), publicProfileFrom(profile));
+}
+
+// ============================================
 // Auth Functions
 // ============================================
 
@@ -69,7 +104,7 @@ export async function registerUser(
     parentalConsentGranted: false,
   };
 
-  await setDoc(doc(db, 'users', cred.user.uid), profile);
+  await persistNewProfile(profile);
   return profile;
 }
 
@@ -102,7 +137,7 @@ export async function signInWithGoogle(): Promise<UserProfile> {
     parentalConsentGranted: false,
   };
 
-  await setDoc(doc(db, 'users', user.uid), profile);
+  await persistNewProfile(profile);
   return profile;
 }
 
@@ -131,6 +166,17 @@ export async function updateUserProfile(
   updates: Partial<UserProfile>
 ): Promise<void> {
   await updateDoc(doc(db, 'users', uid), updates);
+
+  // Keep the public projection in sync for any public-safe fields changed.
+  const publicUpdates: Record<string, unknown> = {};
+  for (const key of PUBLIC_PROFILE_KEYS) {
+    if (key in updates) {
+      publicUpdates[key] = (updates as Record<string, unknown>)[key];
+    }
+  }
+  if (Object.keys(publicUpdates).length > 0) {
+    await setDoc(doc(db, 'publicProfiles', uid), publicUpdates, { merge: true });
+  }
 }
 
 // ============================================
@@ -243,10 +289,29 @@ export async function getPublicStories(limitCount = 20): Promise<Story[]> {
 // ============================================
 
 export async function getPublicProfile(userId: string): Promise<PublicProfile | null> {
-  const userProfile = await getUserProfile(userId);
-  if (!userProfile) return null;
+  // Read the public projection, never the private user doc (which holds PII).
+  const snap = await getDoc(doc(db, 'publicProfiles', userId));
+  if (!snap.exists()) return null;
+  const publicData = snap.data() as {
+    uid: string;
+    displayName: string;
+    avatarUrl?: string;
+    bio?: string;
+    visibility: PublicProfile['visibility'];
+    isChild: boolean;
+    createdAt: string;
+  };
 
-  const storyCount = await getUserStoryCount(userId);
+  // A public profile only counts the user's public, completed stories —
+  // reading their private stories would (correctly) be denied by the rules.
+  const publicStoriesQ = query(
+    collection(db, 'stories'),
+    where('userId', '==', userId),
+    where('isPublic', '==', true),
+    where('isComplete', '==', true)
+  );
+  const publicStoriesSnap = await getDocs(publicStoriesQ);
+  const storyCount = publicStoriesSnap.size;
 
   // Count followers
   const followersQ = query(
@@ -265,16 +330,16 @@ export async function getPublicProfile(userId: string): Promise<PublicProfile | 
   const followingSnap = await getDocs(followingQ);
 
   return {
-    userId: userProfile.uid,
-    displayName: userProfile.displayName,
-    avatarUrl: userProfile.avatarUrl,
-    bio: userProfile.bio,
-    visibility: userProfile.visibility,
-    isChild: userProfile.isChild,
+    userId: publicData.uid,
+    displayName: publicData.displayName,
+    avatarUrl: publicData.avatarUrl,
+    bio: publicData.bio,
+    visibility: publicData.visibility,
+    isChild: publicData.isChild,
     followerCount: followersSnap.size,
     followingCount: followingSnap.size,
     storyCount,
-    createdAt: userProfile.createdAt,
+    createdAt: publicData.createdAt,
   };
 }
 
