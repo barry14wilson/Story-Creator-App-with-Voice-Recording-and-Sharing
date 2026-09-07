@@ -11,7 +11,7 @@ import {
   type User,
 } from 'firebase/auth';
 import {
-  getFirestore,
+  initializeFirestore,
   collection,
   doc,
   setDoc,
@@ -22,6 +22,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
 } from 'firebase/firestore';
 import type { UserProfile, Story, DailyUsage, PublicProfile, FollowRequest, FollowStatus } from '../types';
 
@@ -38,7 +39,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// ignoreUndefinedProperties lets us pass objects with optional fields left as
+// `undefined` (e.g. avatarUrl, bio) without Firestore throwing
+// "Unsupported field value: undefined" on write.
+export const db = initializeFirestore(app, {
+  ignoreUndefinedProperties: true,
+});
 
 // ============================================
 // Auth Functions
@@ -225,10 +231,11 @@ export async function getPublicStories(limitCount = 20): Promise<Story[]> {
     collection(db, 'stories'),
     where('isPublic', '==', true),
     where('isComplete', '==', true),
-    orderBy('updatedAt', 'desc')
+    orderBy('updatedAt', 'desc'),
+    limit(limitCount)
   );
   const snap = await getDocs(q);
-  return snap.docs.slice(0, limitCount).map(d => d.data() as Story);
+  return snap.docs.map(d => d.data() as Story);
 }
 
 // ============================================
