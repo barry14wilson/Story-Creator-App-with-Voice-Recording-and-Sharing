@@ -1,0 +1,77 @@
+rules_version = '2';
+
+// Robyn Reads — Firestore security rules
+// Default deny; every rule below requires an authenticated user.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- User profiles (PRIVATE) ----
+    // Holds PII (email, parentEmail, tier, address, consent flags).
+    // Only the owner may read or write it. Anything other users need to see
+    // lives in /publicProfiles instead.
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null
+                    && request.auth.uid == uid
+                    && request.resource.data.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if false;
+    }
+
+    // ---- Public profile projection ----
+    // Public-safe subset (displayName, avatarUrl, bio, visibility, isChild,
+    // createdAt) that anyone signed in may read; only the owner may write.
+    match /publicProfiles/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // ---- Stories ----
+    // Readable if public, or by the owner. Only the owner may write.
+    match /stories/{storyId} {
+      allow read: if request.auth != null
+                  && (resource.data.isPublic == true
+                      || request.auth.uid == resource.data.userId);
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null
+                            && request.auth.uid == resource.data.userId;
+    }
+
+    // ---- Daily usage counters ----
+    // Doc id is "<uid>_<YYYY-MM-DD>". Restrict to the owner via the id prefix
+    // so reads of not-yet-created docs resolve instead of being denied.
+    match /dailyUsage/{docId} {
+      allow read: if request.auth != null
+                  && docId.split('_')[0] == request.auth.uid;
+      allow write: if request.auth != null
+                   && docId.split('_')[0] == request.auth.uid
+                   && request.resource.data.userId == request.auth.uid;
+    }
+
+    // ---- Follow requests / relationships ----
+    // Doc id is "<fromUserId>_<toUserId>".
+    match /followers/{docId} {
+      // get() by id (incl. not-yet-existing docs) — check via id prefix/suffix.
+      allow get: if request.auth != null
+                 && (request.auth.uid == docId.split('_')[0]
+                     || request.auth.uid == docId.split('_')[1]);
+      // Accepted edges are public (follower/following counts on profiles);
+      // pending requests are visible only to the two parties involved.
+      allow list: if request.auth != null
+                  && (resource.data.status == 'accepted'
+                      || request.auth.uid == resource.data.followerUserId
+                      || request.auth.uid == resource.data.followedUserId);
+      // The requester creates the edge.
+      allow create: if request.auth != null
+                    && request.auth.uid == request.resource.data.fromUserId
+                    && request.resource.data.fromUserId == request.resource.data.followerUserId;
+      // The recipient accepts/declines.
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.followedUserId;
+      // The requester can unfollow/cancel.
+      allow delete: if request.auth != null
+                    && request.auth.uid == resource.data.followerUserId;
+    }
+  }
+}
